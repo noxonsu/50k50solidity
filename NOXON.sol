@@ -1,5 +1,17 @@
 pragma solidity ^0.4.15;
 
+/*
+The exchange rate is calculated at the time of receipt of payment and is:
+
+_emissionPrice = this.balance / _totalSupply * 2
+
+Tokens that you own can always be burned and get the Ether in return. 
+To do this, transfer tokens back to the contract, in this case you are paid the amount in ETH 
+in proportion to your share of the reserve fund (this.balance), the tokens themselves are destroyed.
+
+Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
+*/
+
 // ERC Token Standard #20 Interface
 // https://github.com/ethereum/EIPs/issues/20
 contract ERC20Interface {
@@ -16,13 +28,13 @@ contract ERC20Interface {
 
   
  contract Noxon is ERC20Interface {
-     string public constant symbol = "NOX";
-     string public constant name = "noxon.fund";
-     uint8 public constant decimals = 18;
+     string public constant symbol = "NOXON";
+     string public constant name = "NOXON";
+     uint8 public constant decimals = 0;
      uint256 _totalSupply = 0;
-     uint256 _sellPrice;
-     uint256 _buyPrice;
-     bool public salelocked = false;
+     uint256 _burnPrice;
+     uint256 _emissionPrice;
+     bool public emissionlocked = false;
      // Owner of this contract
      address public owner;
   
@@ -51,43 +63,37 @@ contract ERC20Interface {
             owner = newOwner;
         }
      }
-     
-    modifier onlyPayloadSize(uint numwords) {
-    assert(msg.data.length == numwords * 32 + 4);
-        _;
-    }
     
      // Constructor
      function Noxon() payable {
-         
          require(_totalSupply == 0);
          require(msg.value > 0);
          owner = msg.sender;
-         balances[owner] = 1e18;//owner got 1 token
+         balances[owner] = 1;//owner got 1 token
          _totalSupply = balances[owner];
-         _sellPrice = msg.value;
-         _buyPrice = _sellPrice*2;
+         _burnPrice = msg.value;
+         _emissionPrice = _burnPrice*2;
      }
      
      //The owner can turn off accepting new ether
-     function lockSale() onlyOwner {
-        salelocked = true;
+     function lockEmission() onlyOwner {
+        emissionlocked = true;
      } 
      
-     function unlockSale() onlyOwner {
-        salelocked = false;
+     function unlockEmission() onlyOwner {
+        emissionlocked = false;
      } 
   
      function totalSupply() constant returns (uint256) {
          return _totalSupply;
      }
      
-     function sellPrice() constant returns (uint256) {
-         return _sellPrice;
+     function burnPrice() constant returns (uint256) {
+         return _burnPrice;
      }
      
-     function buyPrice() constant returns (uint256) {
-         return _buyPrice;
+     function emissionPrice() constant returns (uint256) {
+         return _emissionPrice;
      }
   
      // What is the balance of a particular account?
@@ -96,40 +102,43 @@ contract ERC20Interface {
      }
   
      // Transfer the balance from owner's account to another account
-     function transfer(address _to, uint256 _amount) onlyPayloadSize(2) returns (bool success)  {
+     function transfer(address _to, uint256 _amount) returns (bool success)  {
          
-         // if you send TOKENS to the contract they will be sold
-         if (_to == address(this)) return sellToContact(_to,_amount);
-         
-         if (balances[msg.sender] >= _amount 
-             && _amount > 0
-             && balances[_to] + _amount > balances[_to]) {
-             balances[msg.sender] -= _amount;
-             balances[_to] += _amount;
-             Transfer(msg.sender, _to, _amount);
-             
-             
-             
-             return true;
+         // if you send TOKENS to the contract they will be burned and you will return part of Ether from smart contract
+         if (_to == address(this)) { 
+             return sellToContact(_to,_amount);
          } else {
-             return false;
+         
+             if (balances[msg.sender] >= _amount 
+                 && _amount > 0
+                 && balances[_to] + _amount > balances[_to]) {
+                 balances[msg.sender] -= _amount;
+                 balances[_to] += _amount;
+                 Transfer(msg.sender, _to, _amount);
+                 return true;
+             } else {
+                 return false;
+             }
+         
          }
      }
     
-    function sellToContact(address _to,uint256 _amount) onlyPayloadSize(2) internal returns (bool success) {
-        uint256 _sellPriceTmp = _sellPrice;
+    function sellToContact(address _to,uint256 _amount) internal returns (bool success) {
+        uint256 _burnPriceTmp = _burnPrice;
         if (balances[msg.sender] >= _amount 
-             && _amount > 0 && _to == address(this)) {
+             && _amount > 0 
+             && _to == address(this)) {
             
              Transfer(msg.sender, 0, _amount);
              balances[msg.sender] -= _amount;                                   // subtracts the amount from seller's balance
              
              _totalSupply -= _amount;
+             require(_totalSupply >= 1);
              
-             msg.sender.transfer(_amount * _sellPrice/1e18);              // sends ether to the seller
+             msg.sender.transfer(_amount * _burnPrice);              // sends ether to the seller
              
-             _sellPrice = getSellPrice();
-             require(_sellPriceTmp == _sellPrice);
+             _burnPrice = getBurnPrice();
+             require(_burnPrice >= _burnPriceTmp); //only growth required 
              
              return true;
          } else {
@@ -142,14 +151,14 @@ contract ERC20Interface {
         
         //save tmp for double check in the end of function
         //sellPrice never changes when someone buy tokens
-        uint256 _sellPriceTmp = _sellPrice; 
+        uint256 _burnPriceTmp = _burnPrice; 
         
-        require(salelocked == false);
-        require(_sellPrice>0 && _buyPrice > _sellPrice);
+        require(emissionlocked == false);
+        require(_burnPrice>0 && _emissionPrice > _burnPrice);
         require(msg.value>0);
 
         // calculate the amount
-        uint256 amount = msg.value*1e18/_buyPrice;                
+        uint256 amount = msg.value/_emissionPrice;                
         
         //check overflow
         require(balances[msg.sender] + amount > balances[msg.sender]);
@@ -162,20 +171,21 @@ contract ERC20Interface {
         Transfer(0, msg.sender, amount);
         
         //are prices unchanged?   
-        _sellPrice = getSellPrice();   
-        require(_sellPrice == _sellPriceTmp);  
+        _burnPrice = getBurnPrice();   
+        _emissionPrice = _burnPrice*2;
+        require(_burnPrice >= _burnPriceTmp); //only growth  
 
    }
-   function getSellPrice() returns (uint) {
-       return this.balance*1e18/_totalSupply;
+   function getBurnPrice() returns (uint) {
+       return this.balance/_totalSupply;
    }
    
    
    //add Ether to reserve fund without issue new tokens (prices will growth)
     function addToReserve() payable returns (bool) {
         if (msg.value > 0) {
-            _sellPrice = getSellPrice();
-            _buyPrice = _sellPrice*2;
+            _burnPrice = getBurnPrice();
+            _emissionPrice = _burnPrice*2;
             return true;
         } else {
             return false;
@@ -192,11 +202,13 @@ contract ERC20Interface {
          address _from,
          address _to,
          uint256 _amount
-     ) onlyPayloadSize(3) returns (bool success) {
+     ) returns (bool success) {
          if (balances[_from] >= _amount
              && allowed[_from][msg.sender] >= _amount
              && _amount > 0
-             && balances[_to] + _amount > balances[_to]) {
+             && balances[_to] + _amount > balances[_to]
+             && _to != address(this)
+             ) {
              balances[_from] -= _amount;
              allowed[_from][msg.sender] -= _amount;
              balances[_to] += _amount;
@@ -209,7 +221,7 @@ contract ERC20Interface {
   
      // Allow _spender to withdraw from your account, multiple times, up to the _value amount.
      // If this function is called again it overwrites the current allowance with _value.
-     function approve(address _spender, uint256 _amount) onlyPayloadSize(2) returns (bool success) {
+     function approve(address _spender, uint256 _amount) returns (bool success) {
          allowed[msg.sender][_spender] = _amount;
          Approval(msg.sender, _spender, _amount);
          return true;
