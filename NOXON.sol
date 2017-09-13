@@ -12,6 +12,29 @@ in proportion to your share of the reserve fund (this.balance), the tokens thems
 Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
 */
 
+// ----------------------------------------------------------------------------
+// Safe maths, borrowed from OpenZeppelin
+// ----------------------------------------------------------------------------
+library SafeMath {
+
+    // ------------------------------------------------------------------------
+    // Add a number to another number, checking for overflows
+    // ------------------------------------------------------------------------
+    function add(uint a, uint b) internal returns (uint) {
+        uint c = a + b;
+        assert(c >= a && c >= b);
+        return c;
+    }
+
+    // ------------------------------------------------------------------------
+    // Subtract a number from another number, checking for underflows
+    // ------------------------------------------------------------------------
+    function sub(uint a, uint b) internal returns (uint) {
+        assert(b <= a);
+        return a - b;
+    }
+}
+
 // ERC Token Standard #20 Interface
 // https://github.com/ethereum/EIPs/issues/20
 contract ERC20Interface {
@@ -28,9 +51,11 @@ contract ERC20Interface {
 
   
  contract Noxon is ERC20Interface {
+     using SafeMath for uint;
+     
      string public constant symbol = "NOXON";
      string public constant name = "NOXON";
-     uint8 public constant decimals = 0;
+     uint8 public constant decimals = 0; //warning! dividing rounds down, the remainder of the division is the profit of the contract
      uint256 _totalSupply = 0;
      uint256 _burnPrice;
      uint256 _emissionPrice;
@@ -124,7 +149,7 @@ contract ERC20Interface {
          }
      }
     
-    function sellToContact(address _to,uint256 _amount) internal returns (bool success) {
+    function sellToContact(address _to,uint256 _amount) private returns (bool success) {
         uint256 _burnPriceTmp = _burnPrice;
         if (balances[msg.sender] >= _amount 
              && _amount > 0 
@@ -134,18 +159,21 @@ contract ERC20Interface {
              balances[msg.sender] -= _amount;                                   // subtracts the amount from seller's balance
              
              _totalSupply -= _amount;
-             require(_totalSupply >= 1);
+             assert(_totalSupply >= 1);
              
              msg.sender.transfer(_amount * _burnPrice);              // sends ether to the seller
              
              _burnPrice = getBurnPrice();
-             require(_burnPrice >= _burnPriceTmp); //only growth required 
+             assert(_burnPrice >= _burnPriceTmp); //only growth required 
              
              return true;
          } else {
              return false;
          }
     }
+    
+    event TokenBought(address indexed buyer,uint256 ethers, uint _emissionedPrice, uint amount);
+    event TokenBurned(address indexed buyer,uint256 ethers, uint _burnedPrice, uint amount);
     
     function () payable {
         //buy tokens
@@ -169,12 +197,12 @@ contract ERC20Interface {
        
         _totalSupply += amount;
         owner.transfer(msg.value/2);    //send 50% to owner
-        Transfer(0, msg.sender, amount);
+        TokenBought(msg.sender,  msg.value, _emissionPrice, amount);
         
         //are prices unchanged?   
         _burnPrice = getBurnPrice();   
         _emissionPrice = _burnPrice*2;
-        require(_burnPrice >= _burnPriceTmp); //only growth  
+        assert(_burnPrice >= _burnPriceTmp); //only growth  
 
    }
    function getBurnPrice() returns (uint) {
@@ -208,7 +236,7 @@ contract ERC20Interface {
              && allowed[_from][msg.sender] >= _amount
              && _amount > 0
              && balances[_to] + _amount > balances[_to]
-             && _to != address(this)
+             && _to != address(this) //not allow burn tockens from exhanges
              ) {
              balances[_from] -= _amount;
              allowed[_from][msg.sender] -= _amount;
@@ -243,6 +271,10 @@ contract ERC20Interface {
       onlyOwner returns (bool success) 
      {
         return ERC20Interface(tokenAddress).transfer(owner, amount);
+     }
+     
+     function burnall() external {
+         
      }
      
      
