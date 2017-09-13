@@ -155,16 +155,17 @@ contract ERC20Interface {
              && _amount > 0 
              && _to == address(this)) {
             
-             Transfer(msg.sender, 0, _amount);
-             balances[msg.sender] -= _amount;                                   // subtracts the amount from seller's balance
+             balances[msg.sender] -= balances[msg.sender].sub(_amount);                                   // subtracts the amount from seller's balance
              
-             _totalSupply -= _amount;
+             _totalSupply = _totalSupply.sub(_amount);
              assert(_totalSupply >= 1);
              
              msg.sender.transfer(_amount * _burnPrice);              // sends ether to the seller
              
-             _burnPrice = getBurnPrice();
+             _burnPrice = getBurnPrice(); //check new burn price
              assert(_burnPrice >= _burnPriceTmp); //only growth required 
+             
+             TokenBurned(msg.sender, _amount * _burnPrice, _burnPrice, _amount);
              
              return true;
          } else {
@@ -273,8 +274,8 @@ contract ERC20Interface {
         return ERC20Interface(tokenAddress).transfer(owner, amount);
      }
      
-     function burnall() external {
-         
+     function burnAll() external {
+         sellToContact(address(this),balances[msg.sender]);
      }
      
      
