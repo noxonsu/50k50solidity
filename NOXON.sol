@@ -70,6 +70,7 @@ contract ERC20Interface {
          require(msg.value > 0);
          owner = msg.sender;
          balances[owner] = 1;//owner got 1 token
+         Transfer(0, msg.sender, 1);
          _totalSupply = balances[owner];
          _burnPrice = msg.value;
          _emissionPrice = _burnPrice*2;
@@ -222,6 +223,13 @@ contract ERC20Interface {
      // Allow _spender to withdraw from your account, multiple times, up to the _value amount.
      // If this function is called again it overwrites the current allowance with _value.
      function approve(address _spender, uint256 _amount) returns (bool success) {
+         
+         // To change the approve amount you first have to reduce the addresses`
+        //  allowance to zero by calling `approve(_spender,0)` if it is not
+        //  already 0 to mitigate the race condition described here:
+        //  https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+        require((_amount == 0) || (allowed[msg.sender][_spender] == 0));
+        
          allowed[msg.sender][_spender] = _amount;
          Approval(msg.sender, _spender, _amount);
          return true;
@@ -229,6 +237,12 @@ contract ERC20Interface {
   
      function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
          return allowed[_owner][_spender];
+     }
+     
+     function transferAnyERC20Token(address tokenAddress, uint amount)
+      onlyOwner returns (bool success) 
+     {
+        return ERC20Interface(tokenAddress).transfer(owner, amount);
      }
      
      
