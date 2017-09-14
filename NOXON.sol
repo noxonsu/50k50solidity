@@ -7,32 +7,40 @@ _emissionPrice = this.balance / _totalSupply * 2
 
 Tokens that you own can always be burned and get the Ether in return. 
 To do this, transfer tokens back to the contract, in this case you are paid the amount in ETH 
-in proportion to your share of the reserve fund (this.balance), the tokens themselves are destroyed.
+in proportion to your share of the reserve fund (this.balance), the tokens themselves are destroyed (burned).
+
+_burnPrice = this.balance / _totalSupply * 2
 
 Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
 */
 
 // ----------------------------------------------------------------------------
-// Safe maths, borrowed from OpenZeppelin
+// Safe maths from OpenZeppelin
 // ----------------------------------------------------------------------------
 library SafeMath {
+  function mul(uint256 a, uint256 b) internal constant returns (uint256) {
+    uint256 c = a * b;
+    assert(a == 0 || c / a == b);
+    return c;
+  }
 
-    // ------------------------------------------------------------------------
-    // Add a number to another number, checking for overflows
-    // ------------------------------------------------------------------------
-    function add(uint a, uint b) internal returns (uint) {
-        uint c = a + b;
-        assert(c >= a && c >= b);
-        return c;
-    }
+  function div(uint256 a, uint256 b) internal constant returns (uint256) {
+    // assert(b > 0); // Solidity automatically throws when dividing by 0
+    uint256 c = a / b;
+    // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+    return c;
+  }
 
-    // ------------------------------------------------------------------------
-    // Subtract a number from another number, checking for underflows
-    // ------------------------------------------------------------------------
-    function sub(uint a, uint b) internal returns (uint) {
-        assert(b <= a);
-        return a - b;
-    }
+  function sub(uint256 a, uint256 b) internal constant returns (uint256) {
+    assert(b <= a);
+    return a - b;
+  }
+
+  function add(uint256 a, uint256 b) internal constant returns (uint256) {
+    uint256 c = a + b;
+    assert(c >= a);
+    return c;
+  }
 }
 
 // ERC Token Standard #20 Interface
@@ -62,6 +70,7 @@ contract ERC20Interface {
      bool public emissionlocked = false;
      // Owner of this contract
      address public owner;
+     address public manager;
   
      // Balances for each account
      mapping(address => uint256) balances;
@@ -76,7 +85,7 @@ contract ERC20Interface {
      }
      
      address newOwner;
-
+     address newManager;
      // BK Ok - Only owner can assign new proposed owner
      function changeOwner(address _newOwner) onlyOwner {
         newOwner = _newOwner;
@@ -88,17 +97,30 @@ contract ERC20Interface {
             owner = newOwner;
         }
      }
+     
+     
+     function changeManager(address _newManager) onlyOwner {
+        newManager = _newManager;
+     }
+
+    
+     function acceptManagership() {
+        if (msg.sender == newOwner) {
+            manager = newManager;
+        }
+     }
     
      // Constructor
      function Noxon() payable {
          require(_totalSupply == 0);
          require(msg.value > 0);
          owner = msg.sender;
+         manager = owner;
          balances[owner] = 1;//owner got 1 token
          Transfer(0, msg.sender, 1);
          _totalSupply = balances[owner];
          _burnPrice = msg.value;
-         _emissionPrice = _burnPrice*2;
+         _emissionPrice = _burnPrice.mul(2);
      }
      
      //The owner can turn off accepting new ether
@@ -138,8 +160,8 @@ contract ERC20Interface {
              if (balances[msg.sender] >= _amount 
                  && _amount > 0
                  && balances[_to] + _amount > balances[_to]) {
-                 balances[msg.sender] -= _amount;
-                 balances[_to] += _amount;
+                 balances[msg.sender] = balances[msg.sender].sub(_amount);
+                 balances[_to] = balances[_to].add(_amount);
                  Transfer(msg.sender, _to, _amount);
                  return true;
              } else {
@@ -150,22 +172,25 @@ contract ERC20Interface {
      }
     
     function sellToContact(address _to,uint256 _amount) private returns (bool success) {
+        
+        _burnPrice = getBurnPrice();
         uint256 _burnPriceTmp = _burnPrice;
+        
         if (balances[msg.sender] >= _amount 
              && _amount > 0 
              && _to == address(this)) {
             
-             balances[msg.sender] -= balances[msg.sender].sub(_amount);                                   // subtracts the amount from seller's balance
+             balances[msg.sender] = balances[msg.sender].sub(_amount);                                   // subtracts the amount from seller's balance
              
              _totalSupply = _totalSupply.sub(_amount);
              assert(_totalSupply >= 1);
              
-             msg.sender.transfer(_amount * _burnPrice);              // sends ether to the seller
+             msg.sender.transfer(_amount.mul(_burnPrice));              // sends ether to the seller
              
              _burnPrice = getBurnPrice(); //check new burn price
              assert(_burnPrice >= _burnPriceTmp); //only growth required 
              
-             TokenBurned(msg.sender, _amount * _burnPrice, _burnPrice, _amount);
+             TokenBurned(msg.sender, _amount.mul(_burnPrice), _burnPrice, _amount);
              
              return true;
          } else {
@@ -173,14 +198,14 @@ contract ERC20Interface {
          }
     }
     
-    event TokenBought(address indexed buyer,uint256 ethers, uint _emissionedPrice, uint amount);
-    event TokenBurned(address indexed buyer,uint256 ethers, uint _burnedPrice, uint amount);
+    event TokenBought(address indexed buyer,uint256 ethers, uint _emissionedPrice, uint amountOfTokens);
+    event TokenBurned(address indexed buyer,uint256 ethers, uint _burnedPrice, uint amountOfTokens);
     
     function () payable {
         //buy tokens
         
         //save tmp for double check in the end of function
-        //sellPrice never changes when someone buy tokens
+        //_burnPrice never changes when someone buy tokens
         uint256 _burnPriceTmp = _burnPrice; 
         
         require(emissionlocked == false);
@@ -194,15 +219,15 @@ contract ERC20Interface {
         require(balances[msg.sender] + amount > balances[msg.sender]);
         
         // adds the amount to buyer's balance
-        balances[msg.sender] += amount;                   
+        balances[msg.sender] = balances[msg.sender].add(amount);                   
        
-        _totalSupply += amount;
-        owner.transfer(msg.value/2);    //send 50% to owner
+        _totalSupply = _totalSupply.add(amount);
+        manager.transfer(msg.value/2);    //send 50% to manager
         TokenBought(msg.sender,  msg.value, _emissionPrice, amount);
         
         //are prices unchanged?   
         _burnPrice = getBurnPrice();   
-        _emissionPrice = _burnPrice*2;
+        _emissionPrice = _burnPrice.mul(2);
         assert(_burnPrice >= _burnPriceTmp); //only growth  
 
    }
@@ -210,12 +235,13 @@ contract ERC20Interface {
        return this.balance/_totalSupply;
    }
    
-   
+   event EtherReserved(uint etherReserved);
    //add Ether to reserve fund without issue new tokens (prices will growth)
     function addToReserve() payable returns (bool) {
         if (msg.value > 0) {
             _burnPrice = getBurnPrice();
-            _emissionPrice = _burnPrice*2;
+            _emissionPrice = _burnPrice.mul(2);
+            EtherReserved(_emissionPrice);
             return true;
         } else {
             return false;
@@ -239,9 +265,9 @@ contract ERC20Interface {
              && balances[_to] + _amount > balances[_to]
              && _to != address(this) //not allow burn tockens from exhanges
              ) {
-             balances[_from] -= _amount;
-             allowed[_from][msg.sender] -= _amount;
-             balances[_to] += _amount;
+             balances[_from] = balances[_from].sub(_amount);
+             allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
+             balances[_to] = balances[_to].add(_amount);
              Transfer(_from, _to, _amount);
              return true;
          } else {
