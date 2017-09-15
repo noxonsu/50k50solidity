@@ -63,8 +63,7 @@ contract ERC20Interface {
 
 
 contract Noxon is ERC20Interface {
-	using SafeMath
-	for uint;
+	using SafeMath for uint;
 
 	string public constant symbol = "NOXON";
 	string public constant name = "NOXON";
@@ -85,6 +84,11 @@ contract Noxon is ERC20Interface {
 
 	// Functions with this modifier can only be executed by the owner
 	modifier onlyOwner() {
+		require(msg.sender == owner);
+		_;
+	}
+	
+	modifier onlyManager() {
 		require(msg.sender == owner);
 		_;
 	}
@@ -252,10 +256,14 @@ contract Noxon is ERC20Interface {
 	//add Ether to reserve fund without issue new tokens (prices will growth)
 
 	function addToReserve() payable returns(bool) {
+	    uint256 _burnPriceTmp = _burnPrice;
 		if (msg.value > 0) {
 			_burnPrice = getBurnPrice();
 			_emissionPrice = _burnPrice.mul(2);
 			EtherReserved(msg.value);
+			
+			//"only growth" check 
+		    assert(_burnPrice >= _burnPriceTmp);
 			return true;
 		} else {
 			return false;
