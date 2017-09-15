@@ -161,7 +161,7 @@ contract Noxon is ERC20Interface {
 
 		// if you send TOKENS to the contract they will be burned and you will return part of Ether from smart contract
 		if (_to == address(this)) {
-			return sellToContact(_to, _amount);
+			return burnTokens(_amount);
 		} else {
 
 			if (balances[msg.sender] >= _amount && _amount > 0 && balances[_to] + _amount > balances[_to]) {
@@ -176,12 +176,12 @@ contract Noxon is ERC20Interface {
 		}
 	}
 
-	function sellToContact(address _to, uint256 _amount) private returns(bool success) {
+	function burnTokens(uint256 _amount) private returns(bool success) {
 
 		_burnPrice = getBurnPrice();
 		uint256 _burnPriceTmp = _burnPrice;
 
-		if (balances[msg.sender] >= _amount && _amount > 0 && _to == address(this)) {
+		if (balances[msg.sender] >= _amount && _amount > 0) {
 
 			// subtracts the amount from seller's balance and suply
 			balances[msg.sender] = balances[msg.sender].sub(_amount);
@@ -310,7 +310,7 @@ contract Noxon is ERC20Interface {
 	}
 
 	function burnAll() external {
-		sellToContact(address(this), balances[msg.sender]);
+		burnTokens(balances[msg.sender]);
 	}
 
 }
