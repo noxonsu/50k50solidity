@@ -111,8 +111,9 @@ contract Noxon is ERC20Interface {
 
 
 	function acceptManagership() {
-		if (msg.sender == newOwner) {
+		if (msg.sender == newManager) {
 			manager = newManager;
+                        newManager = address(0);
 		}
 	}
 
