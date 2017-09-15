@@ -255,7 +255,7 @@ contract Noxon is ERC20Interface {
 		if (msg.value > 0) {
 			_burnPrice = getBurnPrice();
 			_emissionPrice = _burnPrice.mul(2);
-			EtherReserved(_emissionPrice);
+			EtherReserved(msg.value);
 			return true;
 		} else {
 			return false;
