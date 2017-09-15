@@ -100,6 +100,7 @@ contract Noxon is ERC20Interface {
 	function acceptOwnership() {
 		if (msg.sender == newOwner) {
 			owner = newOwner;
+			newOwner = address(0);
 		}
 	}
 
