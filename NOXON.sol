@@ -1,4 +1,4 @@
-pragma solidity ^ 0.4 .15;
+pragma solidity ^ 0.4.15;
 
 /*
 The exchange rate is calculated at the time of receipt of payment and is:
@@ -87,11 +87,6 @@ contract Noxon is ERC20Interface {
 		require(msg.sender == owner);
 		_;
 	}
-	
-	modifier onlyManager() {
-		require(msg.sender == owner);
-		_;
-	}
 
 	address newOwner;
 	address newManager;
@@ -122,16 +117,22 @@ contract Noxon is ERC20Interface {
 	}
 
 	// Constructor
-	function Noxon() payable {
-		require(_totalSupply == 0);
-		require(msg.value > 0);
+	
+	function Noxon() {
+        require(_totalSupply == 0);
 		owner = msg.sender;
 		manager = owner;
-		balances[owner] = 1; //owner got 1 token
+
+	}
+	function NoxonInit() payable returns (bool) {
+		require(_totalSupply == 0);
+		require(msg.value > 0);
 		Transfer(0, msg.sender, 1);
+		balances[owner] = 1; //owner got 1 token
 		_totalSupply = balances[owner];
 		_burnPrice = msg.value;
 		_emissionPrice = _burnPrice.mul(2);
+		return true;
 	}
 
 	//The owner can turn off accepting new ether
@@ -215,7 +216,7 @@ contract Noxon is ERC20Interface {
 	event TokenBurned(address indexed buyer, uint256 ethers, uint _burnedPrice, uint amountOfTokens);
 
 	function () payable {
-		//buy tokens
+	    //buy tokens
 
 		//save tmp for double check in the end of function
 		//_burnPrice never changes when someone buy tokens
@@ -235,19 +236,19 @@ contract Noxon is ERC20Interface {
 		balances[msg.sender] = balances[msg.sender].add(amount);
 		_totalSupply = _totalSupply.add(amount);
 
+        uint mg = msg.value / 2;
 		//send 50% to manager
-		manager.transfer(msg.value / 2);
+		manager.transfer(mg);
 		TokenBought(msg.sender, msg.value, _emissionPrice, amount);
 
 		//are prices unchanged?   
 		_burnPrice = getBurnPrice();
 		_emissionPrice = _burnPrice.mul(2);
 
-		//"only growth" check 
+		//"only growth"
 		assert(_burnPrice >= _burnPriceTmp);
-
 	}
-
+    
 	function getBurnPrice() returns(uint) {
 		return this.balance / _totalSupply;
 	}
@@ -317,8 +318,54 @@ contract Noxon is ERC20Interface {
 		return ERC20Interface(tokenAddress).transfer(owner, amount);
 	}
 
-	function burnAll() external {
-		burnTokens(balances[msg.sender]);
+	function burnAll() external returns(bool) {
+		return burnTokens(balances[msg.sender]);
 	}
+    
+    
+}
 
+contract Test2 {
+    Noxon main;
+    function Test2() payable {
+        main = new Noxon();
+        
+        
+    }
+    
+    function () payable {
+        
+    }
+    
+    function init() returns (uint) {
+        if (!main.NoxonInit.value(12)()) throw;    //init and set burn price as 12 and emission price to 24 
+        if (!main.call.value(24)()) revert(); //buy 1 token
+ 
+        assert(main.balanceOf(address(this)) == 2); 
+        
+        if (main.call.value(23)()) revert(); //send small amount (must be twhrowed)
+        assert(main.balanceOf(address(this)) == 2); 
+    }
+    
+    
+    
+    function test3() returns (uint) {
+        if (!main.call.value(26)()) revert(); //check floor round (26/24 must issue 1 token)
+        assert(main.balanceOf(address(this)) == 3); 
+        assert(main.emissionPrice() == 24); //24.6 but round floor
+        return main.balance;
+    }
+    
+    function test33() returns (uint){
+        if (!main.call.value(40)()) revert(); //check floor round (40/24 must issue 1 token)
+        assert(main.balanceOf(address(this)) == 4); 
+        assert(main.burnPrice() == 14); // (37+(40/20))/4
+        return main.burnPrice();
+    }
+    
+    function test4() {
+        if (!main.transfer(address(main),2)) revert();
+        assert(main.burnPrice() == 14);
+        
+    }
 }
