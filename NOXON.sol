@@ -118,7 +118,7 @@ contract Noxon is ERC20Interface {
 
 	// Constructor
 	
-	function Noxon() {
+	function Noxon() payable {
         require(_totalSupply == 0);
 		owner = msg.sender;
 		manager = owner;
@@ -325,19 +325,19 @@ contract Noxon is ERC20Interface {
     
 }
 
-contract Test2 {
+contract TestProcess {
     Noxon main;
-    function Test2() payable {
-        main = new Noxon();
-        
-        
-    }
     
+    function TestProcess() payable {
+        main = new Noxon();
+    }
+   
     function () payable {
         
     }
-    
+     
     function init() returns (uint) {
+       
         if (!main.NoxonInit.value(12)()) throw;    //init and set burn price as 12 and emission price to 24 
         if (!main.call.value(24)()) revert(); //buy 1 token
  
@@ -367,5 +367,6 @@ contract Test2 {
         if (!main.transfer(address(main),2)) revert();
         assert(main.burnPrice() == 14);
         
-    }
+    } 
+    
 }
