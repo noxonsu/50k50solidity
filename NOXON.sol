@@ -1,17 +1,18 @@
 pragma solidity ^ 0.4.16;
 
 /*
+Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
+
+1. Transfer Ether to contract for get tokens
 The exchange rate is calculated at the time of receipt of payment and is:
 
 _emissionPrice = this.balance / _totalSupply * 2
 
-Tokens that you own can always be burned and get the Ether in return. 
-To do this, transfer tokens back to the contract, in this case you are paid the amount in ETH 
-in proportion to your share of the reserve fund (this.balance), the tokens themselves are destroyed (burned).
+2. Transfer tokens back to the contract for withdraw ETH 
+in proportion to your share of the reserve fund (contract balance), the tokens themselves are destroyed (burned).
 
-_burnPrice = this.balance / _totalSupply * 2
+_burnPrice = this.balance / _totalSupply
 
-Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
 */
 
 // ----------------------------------------------------------------------------
