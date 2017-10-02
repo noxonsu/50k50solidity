@@ -1,4 +1,4 @@
-pragma solidity ^ 0.4.16;
+pragma solidity ^ 0.4.17;
 
 /*
 Old contract: (2016-2017) 0x3F2D17ed39876c0864d321D8a533ba8080273EdE
@@ -47,17 +47,17 @@ library SafeMath {
 // ERC Token Standard #20 Interface
 // https://github.com/ethereum/EIPs/issues/20
 contract ERC20Interface {
-	function totalSupply() constant returns(uint256 totalSupplyReturn);
+	function totalSupply() public constant returns(uint256 totalSupplyReturn);
 
-	function balanceOf(address _owner) constant returns(uint256 balance);
+	function balanceOf(address _owner) public constant returns(uint256 balance);
 
-	function transfer(address _to, uint256 _value) returns(bool success);
+	function transfer(address _to, uint256 _value) public returns(bool success);
 
-	function transferFrom(address _from, address _to, uint256 _value) returns(bool success);
+	function transferFrom(address _from, address _to, uint256 _value) public returns(bool success);
 
-	function approve(address _spender, uint256 _value) returns(bool success);
+	function approve(address _spender, uint256 _value) public returns(bool success);
 
-	function allowance(address _owner, address _spender) constant returns(uint256 remaining);
+	function allowance(address _owner, address _spender) public constant returns(uint256 remaining);
 	event Transfer(address indexed _from, address indexed _to, uint256 _value);
 	event Approval(address indexed _owner, address indexed _spender, uint256 _value);
 }
@@ -94,12 +94,12 @@ contract Noxon is ERC20Interface {
 	address newOwner;
 	address newManager;
 	// BK Ok - Only owner can assign new proposed owner
-	function changeOwner(address _newOwner) onlyOwner {
+	function changeOwner(address _newOwner) public onlyOwner {
 		newOwner = _newOwner;
 	}
 
 	// BK Ok - Only new proposed owner can accept ownership 
-	function acceptOwnership() {
+	function acceptOwnership() public {
 		if (msg.sender == newOwner) {
 			owner = newOwner;
 			newOwner = address(0);
@@ -107,27 +107,27 @@ contract Noxon is ERC20Interface {
 	}
 
 
-	function changeManager(address _newManager) onlyOwner {
+	function changeManager(address _newManager) public onlyOwner {
 		newManager = _newManager;
 	}
 
 
-	function acceptManagership() {
+	function acceptManagership() public {
 		if (msg.sender == newManager) {
 			manager = newManager;
-                        newManager = address(0);
+            newManager = address(0);
 		}
 	}
 
 	// Constructor
 	
-	function Noxon() {
+	function Noxon() public {
         require(_totalSupply == 0);
 		owner = msg.sender;
 		manager = owner;
         
 	}
-	function NoxonInit() payable returns (bool) {
+	function NoxonInit() public payable onlyOwner returns (bool) {
 		require(_totalSupply == 0);
 		require(initialized == 0);
 		require(msg.value > 0);
@@ -141,33 +141,33 @@ contract Noxon is ERC20Interface {
 	}
 
 	//The owner can turn off accepting new ether
-	function lockEmission() onlyOwner {
+	function lockEmission() public onlyOwner {
 		emissionlocked = true;
 	}
 
-	function unlockEmission() onlyOwner {
+	function unlockEmission() public onlyOwner {
 		emissionlocked = false;
 	}
 
-	function totalSupply() constant returns(uint256) {
+	function totalSupply() public constant returns(uint256) {
 		return _totalSupply;
 	}
 
-	function burnPrice() constant returns(uint256) {
+	function burnPrice() public constant returns(uint256) {
 		return _burnPrice;
 	}
 
-	function emissionPrice() constant returns(uint256) {
+	function emissionPrice() public constant returns(uint256) {
 		return _emissionPrice;
 	}
 
 	// What is the balance of a particular account?
-	function balanceOf(address _owner) constant returns(uint256 balance) {
+	function balanceOf(address _owner) public constant returns(uint256 balance) {
 		return balances[_owner];
 	}
 
 	// Transfer the balance from owner's account to another account
-	function transfer(address _to, uint256 _amount) returns(bool success) {
+	function transfer(address _to, uint256 _amount) public returns(bool success) {
 
 		// if you send TOKENS to the contract they will be burned and you will return part of Ether from smart contract
 		if (_to == address(this)) {
@@ -220,7 +220,7 @@ contract Noxon is ERC20Interface {
 	event TokenBought(address indexed buyer, uint256 ethers, uint _emissionedPrice, uint amountOfTokens);
 	event TokenBurned(address indexed buyer, uint256 ethers, uint _burnedPrice, uint amountOfTokens);
 
-	function () payable {
+	function () public payable {
 	    //buy tokens
 
 		//save tmp for double check in the end of function
@@ -254,14 +254,14 @@ contract Noxon is ERC20Interface {
 		assert(_burnPrice >= _burnPriceTmp);
 	}
     
-	function getBurnPrice() returns(uint) {
+	function getBurnPrice() public returns(uint) {
 		return this.balance / _totalSupply;
 	}
 
 	event EtherReserved(uint etherReserved);
 	//add Ether to reserve fund without issue new tokens (prices will growth)
 
-	function addToReserve() payable returns(bool) {
+	function addToReserve() public payable returns(bool) {
 	    uint256 _burnPriceTmp = _burnPrice;
 		if (msg.value > 0) {
 			_burnPrice = getBurnPrice();
@@ -286,7 +286,7 @@ contract Noxon is ERC20Interface {
 		address _from,
 		address _to,
 		uint256 _amount
-	) returns(bool success) {
+	) public returns(bool success) {
 		if (balances[_from] >= _amount && allowed[_from][msg.sender] >= _amount && _amount > 0 && balances[_to] + _amount > balances[_to] && _to != address(this) //not allow burn tockens from exhanges
 		) {
 			balances[_from] = balances[_from].sub(_amount);
@@ -301,24 +301,18 @@ contract Noxon is ERC20Interface {
 
 	// Allow _spender to withdraw from your account, multiple times, up to the _value amount.
 	// If this function is called again it overwrites the current allowance with _value.
-	function approve(address _spender, uint256 _amount) returns(bool success) {
-
-		// To change the approve amount you first have to reduce the addresses`
-		//  allowance to zero by calling `approve(_spender,0)` if it is not
-		//  already 0 to mitigate the race condition described here:
-		//  https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-		require((_amount == 0) || (allowed[msg.sender][_spender] == 0));
-
+	function approve(address _spender, uint256 _amount) public returns(bool success) {
 		allowed[msg.sender][_spender] = _amount;
 		Approval(msg.sender, _spender, _amount);
 		return true;
 	}
 
-	function allowance(address _owner, address _spender) constant returns(uint256 remaining) {
+	function allowance(address _owner, address _spender) public constant returns(uint256 remaining) {
 		return allowed[_owner][_spender];
 	}
 
 	function transferAnyERC20Token(address tokenAddress, uint amount)
+	public
 	onlyOwner returns(bool success) {
 		return ERC20Interface(tokenAddress).transfer(owner, amount);
 	}
@@ -330,3 +324,47 @@ contract Noxon is ERC20Interface {
     
 }
 
+contract TestProcess {
+    Noxon main;
+    
+    function TestProcess() payable {
+        main = new Noxon();
+    }
+   
+    function () payable {
+        
+    }
+     
+    function init() returns (uint) {
+       
+        if (!main.NoxonInit.value(12)()) throw;    //init and set burn price as 12 and emission price to 24 
+        if (!main.call.value(24)()) revert(); //buy 1 token
+ 
+        assert(main.balanceOf(address(this)) == 2); 
+        
+        if (main.call.value(23)()) revert(); //send small amount (must be twhrowed)
+        assert(main.balanceOf(address(this)) == 2); 
+    }
+    
+    
+    
+    function test1() returns (uint) {
+        if (!main.call.value(26)()) revert(); //check floor round (26/24 must issue 1 token)
+        assert(main.balanceOf(address(this)) == 3); 
+        assert(main.emissionPrice() == 24); //24.6 but round floor
+        return main.balance;
+    }
+    
+    function test2() returns (uint){
+        if (!main.call.value(40)()) revert(); //check floor round (40/24 must issue 1 token)
+        assert(main.balanceOf(address(this)) == 4); 
+        //assert(main.emissionPrice() == 28);
+        //return main.burnPrice();
+    } 
+    
+    function test3() {
+        if (!main.transfer(address(main),2)) revert();
+        assert(main.burnPrice() == 14);
+    } 
+    
+}
